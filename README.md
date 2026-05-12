@@ -18,7 +18,19 @@ Claude Code 只支持 Anthropic Messages API。如果你有 OpenAI 兼容的 API
 | count_tokens 端点 | ✅ |
 | 模型列表 / 模型详情 | ✅ |
 | 交互式输入上游地址 | ✅ |
-| Prompt caching 透传 | ❌ |
+| Prompt caching 透传 | ⚠️ 见下方说明 |
+
+### Prompt Caching 说明
+
+Anthropic API 通过 `cache_control: {"type": "ephemeral"}` 标记来缓存系统提示词和对话上下文，命中缓存的 token 仅收取原价的 10%。Claude Code 会默认在系统提示词上设置此标记。
+
+OpenAI Chat Completions API **没有等价的缓存控制参数**，因此代理无法直接翻译此功能。这意味着：
+
+- 每个请求的上游都会重新处理完整 prompt，无法享受 Anthropic 级别的缓存折扣
+- 如果你的上游提供商（如 DeepSeek、某些中转）实现了**自动前缀缓存**，则缓存仍然生效——与代理无关
+- **强依赖缓存以降低 token 成本的场景下，建议使用原生 Anthropic API 而非代理**
+
+> 要确认你的上游是否支持自动缓存：连续发送两个相同请求，对比两次的 `usage.prompt_tokens` 和响应速度。如果第二个请求明显更快或 prompt_tokens 被标记为 cached，则说明上游有自动缓存。
 
 ## 依赖
 
