@@ -95,7 +95,7 @@ def _msg_content_to_oai(content, role):
             })
         results.append({
             "role": "assistant",
-            "content": "\n".join(text_parts) if text_parts else None,
+            "content": "\n".join(text_parts) if text_parts else "",
             "tool_calls": oai_tool_calls,
         })
         return results
@@ -137,7 +137,7 @@ def anthropic_to_openai(body, model_override=None):
         "model": model_override or body.get("model", "gpt-4"),
         "messages": msgs,
         "max_tokens": body.get("max_tokens", 4096),
-        "temperature": body.get("temperature", 0.7),
+        "temperature": body.get("temperature", 1.0),
         "stream": body.get("stream", False),
     }
 
@@ -293,6 +293,20 @@ def stream_convert(oai_body, upstream_url, auth, model, handler):
         block_index += 1
         cur_type = None
 
+    # Estimate input tokens for streaming message_start
+    in_tokens = 0
+    for m in oai_body.get("messages", []):
+        content = m.get("content", "")
+        if isinstance(content, str):
+            in_tokens += estimate_tokens(content)
+        elif isinstance(content, list):
+            for block in content:
+                for key in ("text",):
+                    txt = block.get(key, "") if isinstance(block, dict) else ""
+                    if txt:
+                        in_tokens += estimate_tokens(txt)
+    in_tokens = max(1, in_tokens)
+
     def _end_stream(finish, out_tokens):
         nonlocal stream_ended
         if stream_ended:
@@ -339,7 +353,7 @@ def stream_convert(oai_body, upstream_url, auth, model, handler):
                         "model": model,
                         "stop_reason": None,
                         "stop_sequence": None,
-                        "usage": {"input_tokens": 0, "output_tokens": 0},
+                        "usage": {"input_tokens": in_tokens, "output_tokens": 0},
                     }
                 })
                 msg_started = True
